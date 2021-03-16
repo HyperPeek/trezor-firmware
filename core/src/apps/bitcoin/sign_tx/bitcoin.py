@@ -37,6 +37,7 @@ if False:
 
 # the number of bytes to preallocate for serialized transaction chunks
 _MAX_SERIALIZED_CHUNK_SIZE = const(2048)
+_SERIALIZED_TX_BUFFER = writers.empty_bytearray(_MAX_SERIALIZED_CHUNK_SIZE)
 
 
 class Bitcoin:
@@ -78,6 +79,8 @@ class Bitcoin:
         coin: CoinInfo,
         approver: Optional[approvers.Approver],
     ) -> None:
+        global _SERIALIZED_TX_BUFFER
+
         self.tx_info = TxInfo(self, helpers.sanitize_sign_tx(tx, coin))
         self.keychain = keychain
         self.coin = coin
@@ -94,7 +97,8 @@ class Bitcoin:
         self.external: Set[int] = set()
 
         # transaction and signature serialization
-        self.serialized_tx = writers.empty_bytearray(_MAX_SERIALIZED_CHUNK_SIZE)
+        _SERIALIZED_TX_BUFFER[:] = bytes()
+        self.serialized_tx = _SERIALIZED_TX_BUFFER
         self.tx_req = TxRequest()
         self.tx_req.details = TxRequestDetailsType()
         self.tx_req.serialized = TxRequestSerializedType()
