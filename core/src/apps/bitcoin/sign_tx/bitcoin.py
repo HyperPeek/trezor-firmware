@@ -19,7 +19,7 @@ from .hash143 import Bip143Hash
 from .tx_info import OriginalTxInfo, TxInfo
 
 if False:
-    from typing import List, Optional, Set, Tuple, Union
+    from typing import List, Optional, Set, Sequence, Tuple, Union
     from trezor.crypto import bip32
 
     from trezor.messages.SignTx import SignTx
@@ -397,7 +397,7 @@ class Bitcoin:
         i: int,
         txi: TxInput,
         tx_info: Union[TxInfo, OriginalTxInfo],
-        public_keys: List[bytes],
+        public_keys: Sequence[Union[bytes, memoryview]],
         threshold: int,
         script_pubkey: bytes,
     ) -> bytes:

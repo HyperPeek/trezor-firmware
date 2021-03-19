@@ -24,7 +24,7 @@ OUTPUT_SCRIPT_NULL_SSTXCHANGE = (
 )
 
 if False:
-    from typing import Optional, Union, List
+    from typing import Optional, Union, Sequence
 
     from trezor.messages.SignTx import SignTx
     from trezor.messages.TxInput import TxInput
@@ -61,7 +61,7 @@ class DecredHash:
     def preimage_hash(
         self,
         txi: TxInput,
-        public_keys: List[bytes],
+        public_keys: Sequence[Union[bytes, memoryview]],
         threshold: int,
         tx: Union[SignTx, PrevTx],
         coin: CoinInfo,

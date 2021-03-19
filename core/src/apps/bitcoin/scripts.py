@@ -13,7 +13,7 @@ from .multisig import (
     multisig_get_pubkeys,
     multisig_pubkey_index,
 )
-from .readers import read_bytes_prefixed, read_op_push
+from .readers import read_memoryview_prefixed, read_op_push
 from .writers import (
     op_push_length,
     write_bytes_fixed,
@@ -23,7 +23,7 @@ from .writers import (
 )
 
 if False:
-    from typing import List, Optional, Tuple
+    from typing import List, Optional, Sequence, Tuple, Union
 
     from trezor.messages.MultisigRedeemScriptType import MultisigRedeemScriptType
     from trezor.messages.TxInput import TxInput
@@ -120,7 +120,11 @@ def output_derive_script(address: str, coin: CoinInfo) -> bytes:
 # see https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki#specification
 # item 5 for details
 def write_bip143_script_code_prefixed(
-    w: Writer, txi: TxInput, public_keys: List[bytes], threshold: int, coin: CoinInfo
+    w: Writer,
+    txi: TxInput,
+    public_keys: Sequence[Union[bytes, memoryview]],
+    threshold: int,
+    coin: CoinInfo,
 ) -> None:
     if len(public_keys) > 1:
         write_output_script_multisig_prefixed(w, public_keys, threshold)
@@ -156,15 +160,15 @@ def write_input_script_p2pkh_or_p2sh_prefixed(
     append_pubkey(w, pubkey)
 
 
-def parse_input_script_p2pkh(script_sig: bytes) -> Tuple[bytes, bytes, int]:
+def parse_input_script_p2pkh(script_sig: bytes) -> Tuple[memoryview, memoryview, int]:
     try:
         r = utils.BufferReader(script_sig)
         n = read_op_push(r)
-        signature = r.read(n - 1)
+        signature = r.read_memoryview(n - 1)
         hash_type = r.get()
 
         n = read_op_push(r)
-        pubkey = r.read()
+        pubkey = r.read_memoryview()
         if len(pubkey) != n:
             raise ValueError
     except (ValueError, EOFError):
@@ -293,7 +297,7 @@ def write_witness_p2wpkh(
     write_bytes_prefixed(w, pubkey)
 
 
-def parse_witness_p2wpkh(witness: bytes) -> Tuple[bytes, bytes, int]:
+def parse_witness_p2wpkh(witness: bytes) -> Tuple[memoryview, memoryview, int]:
     try:
         r = utils.BufferReader(witness)
 
@@ -302,10 +306,10 @@ def parse_witness_p2wpkh(witness: bytes) -> Tuple[bytes, bytes, int]:
             raise ValueError
 
         n = read_bitcoin_varint(r)
-        signature = r.read(n - 1)
+        signature = r.read_memoryview(n - 1)
         hash_type = r.get()
 
-        pubkey = read_bytes_prefixed(r)
+        pubkey = read_memoryview_prefixed(r)
         if r.remaining_count():
             raise ValueError
     except (ValueError, EOFError):
@@ -349,7 +353,9 @@ def write_witness_multisig(
     write_output_script_multisig_prefixed(w, pubkeys, multisig.m)
 
 
-def parse_witness_multisig(witness: bytes) -> Tuple[bytes, List[Tuple[bytes, int]]]:
+def parse_witness_multisig(
+    witness: bytes,
+) -> Tuple[memoryview, List[Tuple[memoryview, int]]]:
     try:
         r = utils.BufferReader(witness)
 
@@ -363,11 +369,11 @@ def parse_witness_multisig(witness: bytes) -> Tuple[bytes, List[Tuple[bytes, int
         signatures = []
         for i in range(item_count - 2):
             n = read_bitcoin_varint(r)
-            signature = r.read(n - 1)
+            signature = r.read_memoryview(n - 1)
             hash_type = r.get()
             signatures.append((signature, hash_type))
 
-        script = read_bytes_prefixed(r)
+        script = read_memoryview_prefixed(r)
         if r.remaining_count():
             raise ValueError
     except (ValueError, EOFError):
@@ -423,7 +429,7 @@ def write_input_script_multisig_prefixed(
 
 def parse_input_script_multisig(
     script_sig: bytes,
-) -> Tuple[bytes, List[Tuple[bytes, int]]]:
+) -> Tuple[memoryview, List[Tuple[memoryview, int]]]:
     try:
         r = utils.BufferReader(script_sig)
 
@@ -434,12 +440,12 @@ def parse_input_script_multisig(
         signatures = []
         n = read_op_push(r)
         while r.remaining_count() > n:
-            signature = r.read(n - 1)
+            signature = r.read_memoryview(n - 1)
             hash_type = r.get()
             signatures.append((signature, hash_type))
             n = read_op_push(r)
 
-        script = r.read()
+        script = r.read_memoryview()
         if len(script) != n:
             raise ValueError
     except (ValueError, EOFError):
@@ -455,13 +461,15 @@ def output_script_multisig(pubkeys: List[bytes], m: int) -> bytearray:
 
 
 def write_output_script_multisig_prefixed(
-    w: Writer, pubkeys: List[bytes], m: int
+    w: Writer, pubkeys: Sequence[Union[bytes, memoryview]], m: int
 ) -> None:
     write_bitcoin_varint(w, output_script_multisig_length(pubkeys, m))
     write_output_script_multisig(w, pubkeys, m)
 
 
-def write_output_script_multisig(w: Writer, pubkeys: List[bytes], m: int) -> None:
+def write_output_script_multisig(
+    w: Writer, pubkeys: Sequence[Union[bytes, memoryview]], m: int
+) -> None:
     n = len(pubkeys)
     if n < 1 or n > 15 or m < 1 or m > 15 or m > n:
         raise wire.DataError("Invalid multisig parameters")
@@ -476,11 +484,13 @@ def write_output_script_multisig(w: Writer, pubkeys: List[bytes], m: int) -> Non
     w.append(0xAE)  # OP_CHECKMULTISIG
 
 
-def output_script_multisig_length(pubkeys: List[bytes], m: int) -> int:
+def output_script_multisig_length(
+    pubkeys: Sequence[Union[bytes, memoryview]], m: int
+) -> int:
     return 1 + len(pubkeys) * (1 + 33) + 1 + 1  # see output_script_multisig
 
 
-def parse_output_script_multisig(script: bytes) -> Tuple[List[bytes], int]:
+def parse_output_script_multisig(script: bytes) -> Tuple[List[memoryview], int]:
     try:
         r = utils.BufferReader(script)
 
@@ -499,7 +509,7 @@ def parse_output_script_multisig(script: bytes) -> Tuple[List[bytes], int]:
             n = read_op_push(r)
             if n != 33:
                 raise ValueError
-            public_keys.append(r.read(n))
+            public_keys.append(r.read_memoryview(n))
 
         r.get()  # ignore pubkey_count
         if r.get() != 0xAE:  # OP_CHECKMULTISIG
@@ -556,9 +566,9 @@ def write_bip322_signature_proof(
         w.append(0x00)
 
 
-def read_bip322_signature_proof(r: utils.BufferReader) -> Tuple[bytes, bytes]:
-    script_sig = read_bytes_prefixed(r)
-    witness = r.read()
+def read_bip322_signature_proof(r: utils.BufferReader) -> Tuple[memoryview, memoryview]:
+    script_sig = read_memoryview_prefixed(r)
+    witness = r.read_memoryview()
     return script_sig, witness
 
 
@@ -578,6 +588,6 @@ def append_signature(w: Writer, signature: bytes, hash_type: int) -> None:
     w.append(hash_type)
 
 
-def append_pubkey(w: Writer, pubkey: bytes) -> None:
+def append_pubkey(w: Writer, pubkey: Union[bytes, memoryview]) -> None:
     write_op_push(w, len(pubkey))
     write_bytes_unchecked(w, pubkey)

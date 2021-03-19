@@ -191,15 +191,22 @@ class BufferReader:
         If `length` is unspecified, reads all remaining data.
 
         Note that this method makes a copy of the data. To avoid allocation, use
-        `readinto()`.
+        `readinto()` or `read_memoryview()`.
+        """
+        return bytes(self.read_memoryview(length))
+
+    def read_memoryview(self, length: Optional[int] = None) -> memoryview:
+        """Read and return exactly `length` bytes, or raise EOFError.
+
+        If `length` is unspecified, reads all remaining data.
         """
         if length is None:
-            ret = self.buffer[self.offset :]
+            ret = memoryview(self.buffer)[self.offset :]
             self.offset = len(self.buffer)
         elif length < 0:
             raise ValueError
         elif length <= self.remaining_count():
-            ret = self.buffer[self.offset : self.offset + length]
+            ret = memoryview(self.buffer)[self.offset : self.offset + length]
             self.offset += length
         else:
             raise EOFError

@@ -13,7 +13,7 @@ from . import helpers
 from .bitcoin import Bitcoin
 
 if False:
-    from typing import List, Optional, Union
+    from typing import Optional, Sequence, Union
     from .tx_info import OriginalTxInfo, TxInfo
 
 _SIGHASH_FORKID = const(0x40)
@@ -46,7 +46,7 @@ class Bitcoinlike(Bitcoin):
         i: int,
         txi: TxInput,
         tx_info: Union[TxInfo, OriginalTxInfo],
-        public_keys: List[bytes],
+        public_keys: Sequence[Union[bytes, memoryview]],
         threshold: int,
         script_pubkey: bytes,
         tx_hash: Optional[bytes] = None,
